@@ -15,9 +15,7 @@
  */
 package com.github.benmanes.caffeine.cache;
 
-import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
-import java.lang.invoke.MethodType;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -30,9 +28,7 @@ import org.checkerframework.checker.nullness.qual.Nullable;
  */
 final class LocalCacheFactory {
   private static final MethodHandles.Lookup LOOKUP = MethodHandles.lookup();
-  private static final MethodType FACTORY = MethodType.methodType(
-      void.class, Caffeine.class, AsyncCacheLoader.class, boolean.class);
-  private static final Map<String, MethodHandle> CONSTRUCTORS = new ConcurrentHashMap<>();
+  private static final Map<String, Constructor> CONSTRUCTORS = new ConcurrentHashMap<>();
 
   private LocalCacheFactory() {}
 
@@ -87,22 +83,22 @@ final class LocalCacheFactory {
     if (constructor == null) {
       constructor = CONSTRUCTORS.computeIfAbsent(className, LocalCacheFactory::newConstructor);
     }
-    try {
-      return (BoundedLocalCache<K, V>) constructor.invokeExact(builder, cacheLoader, async);
-    } catch (Throwable t) {
-      throw new IllegalStateException(className, t);
-    }
+    return constructor.construct(builder, cacheLoader, async);
   }
 
-  static MethodHandle newConstructor(String className) {
+  static Constructor newConstructor(String className) {
     try {
       var clazz = LOOKUP.findClass(LocalCacheFactory.class.getPackageName() + "." + className);
-      var constructor = LOOKUP.findConstructor(clazz, FACTORY);
-      return constructor.asType(constructor.type().changeReturnType(BoundedLocalCache.class));
+      return (Constructor) LOOKUP.findStaticVarHandle(clazz, "CONSTRUCTOR", Constructor.class).get();
     } catch (RuntimeException | Error e) {
       throw e;
     } catch (Throwable t) {
       throw new IllegalStateException(className, t);
     }
+  }
+  
+  interface Constructor {
+    <K,V> BoundedLocalCache<K, V> construct(Caffeine<K, V> builder,
+        @Nullable AsyncCacheLoader<? super K, V> cacheLoader, boolean async);
   }
 }

@@ -15,7 +15,6 @@
  */
 package com.github.benmanes.caffeine.cache;
 
-import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.lang.ref.ReferenceQueue;
@@ -33,7 +32,7 @@ import com.github.benmanes.caffeine.cache.References.WeakKeyReference;
 interface NodeFactory<K, V> {
   MethodType FACTORY = MethodType.methodType(void.class);
   MethodHandles.Lookup LOOKUP = MethodHandles.lookup();
-  Map<String, MethodHandle> CONSTRUCTORS = new ConcurrentHashMap<>();
+  Map<String, NodeFactory<?,?>> CONSTRUCTORS = new ConcurrentHashMap<>();
 
   RetiredStrongKey RETIRED_STRONG_KEY = new RetiredStrongKey();
   RetiredWeakKey RETIRED_WEAK_KEY = new RetiredWeakKey();
@@ -134,23 +133,20 @@ interface NodeFactory<K, V> {
     return className.toString();
   }
 
+  @SuppressWarnings("unchecked")
   static <K, V> NodeFactory<K, V> loadFactory(String className) {
     var constructor = CONSTRUCTORS.get(className);
     if (constructor == null) {
       constructor = CONSTRUCTORS.computeIfAbsent(className, NodeFactory::newConstructor);
     }
-    try {
-      return (NodeFactory<K, V>) constructor.invokeExact();
-    } catch (Throwable t) {
-      throw new IllegalStateException(className, t);
-    }
+    return (NodeFactory<K,V>) constructor;
   }
 
-  static MethodHandle newConstructor(String className) {
+  static NodeFactory<?,?> newConstructor(String className) {
     try {
       var clazz = LOOKUP.findClass(Node.class.getPackageName() + "." + className);
       var constructor = LOOKUP.findConstructor(clazz, FACTORY);
-      return constructor.asType(constructor.type().changeReturnType(NodeFactory.class));
+      return (NodeFactory<?,?>) constructor.asType(constructor.type().changeReturnType(NodeFactory.class)).invokeExact();
     } catch (RuntimeException | Error e) {
       throw e;
     } catch (Throwable t) {

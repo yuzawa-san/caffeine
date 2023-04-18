@@ -70,6 +70,8 @@ public final class Specifications {
 
   public static final ClassName LOCAL_CACHE_FACTORY =
       ClassName.get(PACKAGE_NAME, "LocalCacheFactory");
+  public static final ClassName LOCAL_CACHE_FACTORY_CONSTRUCTOR =
+      ClassName.get(PACKAGE_NAME + ".LocalCacheFactory", "Constructor");
   public static final ParameterizedTypeName NODE_FACTORY = ParameterizedTypeName.get(
       ClassName.get(PACKAGE_NAME, "NodeFactory"), kTypeVar, vTypeVar);
   public static final ClassName BUILDER = ClassName.get(PACKAGE_NAME, "Caffeine");
