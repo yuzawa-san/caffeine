@@ -80,17 +80,12 @@ interface NodeFactory<K, V> {
   }
 
   /** Returns a factory optimized for the specified features. */
-  @SuppressWarnings("unchecked")
   static <K, V> NodeFactory<K, V> newFactory(Caffeine<K, V> builder, boolean isAsync) {
     if (builder.interner) {
       return new Interned<>();
     }
     var className = getClassName(builder, isAsync);
-    var factory = FACTORIES.get(className);
-    if (factory == null) {
-      factory = FACTORIES.computeIfAbsent(className, NodeFactory::newFactory);
-    }
-    return (NodeFactory<K, V>) factory;
+    return loadFactory(className);
   }
 
   static String getClassName(Caffeine<?, ?> builder, boolean isAsync) {
@@ -136,6 +131,15 @@ interface NodeFactory<K, V> {
       }
     }
     return className.toString();
+  }
+
+  @SuppressWarnings("unchecked")
+  static <K, V> NodeFactory<K, V> loadFactory(String className) {
+    var factory = FACTORIES.get(className);
+    if (factory == null) {
+      factory = FACTORIES.computeIfAbsent(className, NodeFactory::newFactory);
+    }
+    return (NodeFactory<K, V>) factory;
   }
 
   static NodeFactory<Object, Object> newFactory(String className) {

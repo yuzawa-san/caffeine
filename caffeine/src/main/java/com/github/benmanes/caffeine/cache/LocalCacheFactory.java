@@ -37,11 +37,7 @@ interface LocalCacheFactory {
   static <K, V> BoundedLocalCache<K, V> newBoundedLocalCache(Caffeine<K, V> builder,
       @Nullable AsyncCacheLoader<? super K, V> cacheLoader, boolean async) {
     var className = getClassName(builder);
-    var factory = FACTORIES.get(className);
-    if (factory == null) {
-      factory = FACTORIES.computeIfAbsent(className, LocalCacheFactory::newFactory);
-    }
-    return factory.newInstance(builder, cacheLoader, async);
+    return loadFactory(builder, cacheLoader, async, className);
   }
 
   static String getClassName(Caffeine<?, ?> builder) {
@@ -80,6 +76,15 @@ interface LocalCacheFactory {
       className.append('R');
     }
     return className.toString();
+  }
+
+  static <K, V> BoundedLocalCache<K, V> loadFactory(Caffeine<K, V> builder,
+      @Nullable AsyncCacheLoader<? super K, V> cacheLoader, boolean async, String className) {
+    var factory = FACTORIES.get(className);
+    if (factory == null) {
+      factory = FACTORIES.computeIfAbsent(className, LocalCacheFactory::newFactory);
+    }
+    return factory.newInstance(builder, cacheLoader, async);
   }
 
   static LocalCacheFactory newFactory(String className) {
