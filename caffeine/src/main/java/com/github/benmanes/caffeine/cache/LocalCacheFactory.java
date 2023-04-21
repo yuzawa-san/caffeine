@@ -26,17 +26,22 @@ import org.checkerframework.checker.nullness.qual.Nullable;
  *
  * @author ben.manes@gmail.com (Ben Manes)
  */
-final class LocalCacheFactory {
-  private static final MethodHandles.Lookup LOOKUP = MethodHandles.lookup();
-  private static final Map<String, Constructor> CONSTRUCTORS = new ConcurrentHashMap<>();
+interface LocalCacheFactory {
+  static final MethodHandles.Lookup LOOKUP = MethodHandles.lookup();
+  static final Map<String, LocalCacheFactory> FACTORIES = new ConcurrentHashMap<>();
 
-  private LocalCacheFactory() {}
+  <K, V> BoundedLocalCache<K, V> newInstance(Caffeine<K, V> builder,
+      @Nullable AsyncCacheLoader<? super K, V> cacheLoader, boolean async);
 
   /** Returns a cache optimized for this configuration. */
   static <K, V> BoundedLocalCache<K, V> newBoundedLocalCache(Caffeine<K, V> builder,
       @Nullable AsyncCacheLoader<? super K, V> cacheLoader, boolean async) {
     var className = getClassName(builder);
-    return loadFactory(builder, cacheLoader, async, className);
+    var factory = FACTORIES.get(className);
+    if (factory == null) {
+      factory = FACTORIES.computeIfAbsent(className, LocalCacheFactory::newFactory);
+    }
+    return factory.newInstance(builder, cacheLoader, async);
   }
 
   static String getClassName(Caffeine<?, ?> builder) {
@@ -77,28 +82,15 @@ final class LocalCacheFactory {
     return className.toString();
   }
 
-  static <K, V> BoundedLocalCache<K, V> loadFactory(Caffeine<K, V> builder,
-      @Nullable AsyncCacheLoader<? super K, V> cacheLoader, boolean async, String className) {
-    var constructor = CONSTRUCTORS.get(className);
-    if (constructor == null) {
-      constructor = CONSTRUCTORS.computeIfAbsent(className, LocalCacheFactory::newConstructor);
-    }
-    return constructor.construct(builder, cacheLoader, async);
-  }
-
-  static Constructor newConstructor(String className) {
+  static LocalCacheFactory newFactory(String className) {
     try {
       var clazz = LOOKUP.findClass(LocalCacheFactory.class.getPackageName() + "." + className);
-      return (Constructor) LOOKUP.findStaticVarHandle(clazz, "CONSTRUCTOR", Constructor.class).get();
+      return (LocalCacheFactory) LOOKUP
+          .findStaticVarHandle(clazz, "FACTORY", LocalCacheFactory.class).get();
     } catch (RuntimeException | Error e) {
       throw e;
     } catch (Throwable t) {
       throw new IllegalStateException(className, t);
     }
-  }
-  
-  interface Constructor {
-    <K,V> BoundedLocalCache<K, V> construct(Caffeine<K, V> builder,
-        @Nullable AsyncCacheLoader<? super K, V> cacheLoader, boolean async);
   }
 }
